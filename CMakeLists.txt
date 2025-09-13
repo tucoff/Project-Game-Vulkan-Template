@@ -76,14 +76,17 @@ endif()
 # Function to compile shaders
 function(compile_shader SHADER_SOURCE)
     get_filename_component(SHADER_NAME ${SHADER_SOURCE} NAME)
-    set(SPIRV_OUTPUT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${SHADER_NAME}.spv")
+    get_filename_component(SHADER_EXT ${SHADER_SOURCE} LAST_EXT)
+    # Remove the dot from extension
+    string(SUBSTRING ${SHADER_EXT} 1 -1 SHADER_EXT_CLEAN)
+    set(SPIRV_OUTPUT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${SHADER_EXT_CLEAN}.spv")
     
     add_custom_command(
         OUTPUT ${SPIRV_OUTPUT}
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders"
         COMMAND ${GLSLC_EXECUTABLE} ${SHADER_SOURCE} -o ${SPIRV_OUTPUT}
         DEPENDS ${SHADER_SOURCE}
-        COMMENT "Compiling shader ${SHADER_NAME}"
+        COMMENT "Compiling shader ${SHADER_EXT_CLEAN}"
         VERBATIM
     )
     list(APPEND SHADER_BINARIES ${SPIRV_OUTPUT})
@@ -104,12 +107,51 @@ endforeach()
 add_custom_target(shaders ALL DEPENDS ${SHADER_BINARIES})
 add_dependencies(${PROJECT_NAME} shaders)
 
-# Copy textures to build directory
-file(GLOB TEXTURE_FILES "${TEXTURE_DIR}/*.*")
-foreach(TEXTURE ${TEXTURE_FILES})
-    get_filename_component(TEXTURE_NAME ${TEXTURE} NAME)
-    configure_file(${TEXTURE} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/textures/${TEXTURE_NAME} COPYONLY)
+# Smart asset sync that only copies when needed
+add_custom_target(sync_assets ALL
+    COMMENT "Checking and syncing assets to build directory"
+    
+    # Ensure output directories exist
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/models
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/textures
+    
+    # Sync models (copy if different or missing)
+    COMMAND ${CMAKE_COMMAND} -E echo "Syncing models..."
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_ROOT_DIR}/models ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/models
+    
+    # Sync textures (copy if different or missing)
+    COMMAND ${CMAKE_COMMAND} -E echo "Syncing textures..."
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_ROOT_DIR}/textures ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/textures
+    
+    VERBATIM
+)
+
+# Add individual file dependencies so CMake knows when to re-sync
+file(GLOB_RECURSE MODEL_FILES "${PROJECT_ROOT_DIR}/models/*")
+file(GLOB_RECURSE TEXTURE_FILES "${PROJECT_ROOT_DIR}/textures/*")
+
+# Create custom commands for each file type
+foreach(MODEL_FILE ${MODEL_FILES})
+    get_filename_component(MODEL_NAME ${MODEL_FILE} NAME)
+    add_custom_command(
+        OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/models/${MODEL_NAME}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MODEL_FILE} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/models/${MODEL_NAME}
+        DEPENDS ${MODEL_FILE}
+        COMMENT "Updating model: ${MODEL_NAME}"
+    )
 endforeach()
+
+foreach(TEXTURE_FILE ${TEXTURE_FILES})
+    get_filename_component(TEXTURE_NAME ${TEXTURE_FILE} NAME)
+    add_custom_command(
+        OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/textures/${TEXTURE_NAME}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TEXTURE_FILE} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/textures/${TEXTURE_NAME}
+        DEPENDS ${TEXTURE_FILE}
+        COMMENT "Updating texture: ${TEXTURE_NAME}"
+    )
+endforeach()
+
+add_dependencies(${PROJECT_NAME} sync_assets)
 
 # Development options
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
