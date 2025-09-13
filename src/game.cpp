@@ -37,8 +37,8 @@ const char* APP_NAME = "Game-1";
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 800;
 
-const std::string MODEL_PATH = "models/viking_room.obj";
-const std::string TEXTURE_PATH = "textures/viking_room.png";
+const std::string MODEL_PATH = "models/cottage_obj.obj";
+const std::string TEXTURE_PATH = "textures/cottage_diffuse.png";
 
 const int MAX_FRAMES_IN_FLIGHT = 4;
 
@@ -1346,12 +1346,7 @@ private:
         }
 
         for (const auto& shape : shapes)
-        {
-            if (shape.name.find("ground") != std::string::npos || 
-                shape.name.find("light") != std::string::npos) {
-                continue;
-            }
-            
+        {            
             for (const auto& index : shape.mesh.indices)
             {
                 if (index.texcoord_index < 0 || attrib.texcoords.empty()) {
@@ -1368,7 +1363,7 @@ private:
 
                 vertex.texCoord = {
                     attrib.texcoords[2 * index.texcoord_index + 0],
-                    attrib.texcoords[2 * index.texcoord_index + 1]
+                    1 - attrib.texcoords[2 * index.texcoord_index + 1]
                 };
 
                 vertex.color = {1.0f, 1.0f, 1.0f};
@@ -1771,7 +1766,12 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.model = glm::scale(glm::mat4(1.0f), glm::vec3(0.05f));
+        
+        ubo.model = glm::rotate(ubo.model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)); 
+        ubo.model = glm::rotate(ubo.model, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)); 
+        
+        ubo.model = glm::rotate(ubo.model, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); 
         ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
         ubo.proj[1][1] *= -1;
