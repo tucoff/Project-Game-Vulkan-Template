@@ -45,6 +45,9 @@ const std::string TEXTURE_PATH = "textures/viking_room.png";
 
 const int MAX_FRAMES_IN_FLIGHT = 4;
 
+const float CAMERA_SPEED = 2.5f;
+const float MOUSE_SENSITIVITY = 0.05f;
+
 const std::vector<const char*> validationLayers =
 {
     "VK_LAYER_KHRONOS_validation"
@@ -221,6 +224,18 @@ private:
     bool framebufferResized = false;
     uint32_t mipLevels = 1;
 
+    glm::vec3 cameraPos = glm::vec3(2.0f, 2.0f, 2.0f);
+    glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
+    glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+    float cameraSpeed = 2.5f;
+    bool firstMouse = true;
+    float yaw = -90.0f;
+    float pitch = 0.0f;
+    float lastX = WIDTH / 2.0f;
+    float lastY = HEIGHT / 2.0f;
+    float deltaTime = 0.0f;
+    float lastFrame = 0.0f;
+
 #pragma endregion
 
 #pragma region InitWindow()
@@ -240,6 +255,8 @@ private:
 
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+        glfwSetCursorPosCallback(window, mouseCallback);
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -247,6 +264,12 @@ private:
         (void)height;  // Suppress unused parameter warning
         auto app = reinterpret_cast<Game*>(glfwGetWindowUserPointer(window));
         app->framebufferResized = true;
+    }
+
+    static void mouseCallback(GLFWwindow* window, double xpos, double ypos) 
+    {
+        auto app = reinterpret_cast<Game*>(glfwGetWindowUserPointer(window));
+        app->processMouseMovement(static_cast<float>(xpos), static_cast<float>(ypos));
     }
 
 #pragma endregion
@@ -1773,12 +1796,74 @@ private:
 
 #pragma endregion
 
+#pragma region Camera Functions
+
+    void processMouseMovement(float xpos, float ypos) 
+    {
+        if (firstMouse) 
+        {
+            lastX = xpos;
+            lastY = ypos;
+            firstMouse = false;
+        }
+
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos; 
+        lastX = xpos;
+        lastY = ypos;
+
+        xoffset *= MOUSE_SENSITIVITY;
+        yoffset *= MOUSE_SENSITIVITY;
+
+        yaw += xoffset;
+        pitch += yoffset;
+
+        if (pitch > 89.0f)
+            pitch = 89.0f;
+        if (pitch < -89.0f)
+            pitch = -89.0f;
+
+        glm::vec3 front;
+        front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front.y = sin(glm::radians(pitch));
+        front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        cameraFront = glm::normalize(front);
+    }
+
+    void processInput() 
+    {
+        float cameraSpeed = CAMERA_SPEED * deltaTime;
+
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+            cameraPos += cameraSpeed * cameraFront;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            cameraPos -= cameraSpeed * cameraFront;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+            cameraPos += cameraSpeed * cameraUp;
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
+            cameraPos -= cameraSpeed * cameraUp;
+            
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, true);
+    }
+
+#pragma endregion
+
 #pragma region MainLoop()
     void mainLoop()
     {
         while (!glfwWindowShouldClose(window))
         {
+            float currentFrame = static_cast<float>(glfwGetTime());
+            deltaTime = currentFrame - lastFrame;
+            lastFrame = currentFrame;
+
             glfwPollEvents();
+            processInput();
 
             glfwSetWindowPos(window, (1920/2)-WIDTH/2, (1080/2)-HEIGHT/2);
 
@@ -1938,9 +2023,11 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         UniformBufferObject ubo{};
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        glm::mat4 modelMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f)); 
+        modelMatrix = glm::rotate(modelMatrix, time * 0.05f * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)); 
+        ubo.model = modelMatrix;
+        ubo.view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 100.0f);
         ubo.proj[1][1] *= -1;
 
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
