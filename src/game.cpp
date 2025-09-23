@@ -2,6 +2,7 @@
 
 #include "game.h"
 #include "utils.h"
+#include "compute.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
@@ -235,6 +236,8 @@ private:
     float lastY = HEIGHT / 2.0f;
     float deltaTime = 0.0f;
     float lastFrame = 0.0f;
+    
+    bool switchToCompute = false;
 
 #pragma endregion
 
@@ -884,8 +887,8 @@ private:
 
     void createGraphicsPipeline()
     {
-        auto vertShaderCode = readFile("shaders/vert.spv");
-        auto fragShaderCode = readFile("shaders/frag.spv");
+        auto vertShaderCode = readFile("shaders/game_vert.spv");
+        auto fragShaderCode = readFile("shaders/game_frag.spv");
 
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
         VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
@@ -1849,6 +1852,12 @@ private:
             
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             glfwSetWindowShouldClose(window, true);
+            
+        // Pressionar '2' para mudar para compute
+        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+            switchToCompute = true;
+            glfwSetWindowShouldClose(window, true);
+        }
     }
 
 #pragma endregion
@@ -1871,6 +1880,13 @@ private:
         }
 
         vkDeviceWaitIdle(device);
+        
+        // Se foi pressionado '2', executar compute
+        if (switchToCompute) {
+            std::cout << "Mudando para Compute..." << std::endl;
+            cleanup(); // Limpar recursos antes de trocar
+            compute();
+        }
     }
 
     void drawFrame()

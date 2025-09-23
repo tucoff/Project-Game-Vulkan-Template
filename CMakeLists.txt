@@ -75,18 +75,18 @@ endif()
 
 # Function to compile shaders
 function(compile_shader SHADER_SOURCE)
-    get_filename_component(SHADER_NAME ${SHADER_SOURCE} NAME)
+    get_filename_component(SHADER_NAME ${SHADER_SOURCE} NAME_WE)
     get_filename_component(SHADER_EXT ${SHADER_SOURCE} LAST_EXT)
     # Remove the dot from extension
     string(SUBSTRING ${SHADER_EXT} 1 -1 SHADER_EXT_CLEAN)
-    set(SPIRV_OUTPUT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${SHADER_EXT_CLEAN}.spv")
+    set(SPIRV_OUTPUT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/${SHADER_NAME}_${SHADER_EXT_CLEAN}.spv")
     
     add_custom_command(
         OUTPUT ${SPIRV_OUTPUT}
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders"
         COMMAND ${GLSLC_EXECUTABLE} ${SHADER_SOURCE} -o ${SPIRV_OUTPUT}
         DEPENDS ${SHADER_SOURCE}
-        COMMENT "Compiling shader ${SHADER_EXT_CLEAN}"
+        COMMENT "Compiling shader ${SHADER_NAME}_${SHADER_EXT_CLEAN}"
         VERBATIM
     )
     list(APPEND SHADER_BINARIES ${SPIRV_OUTPUT})
@@ -97,6 +97,7 @@ endfunction()
 file(GLOB SHADER_SOURCES
     "${SHADER_DIR}/*.vert"
     "${SHADER_DIR}/*.frag"
+    "${SHADER_DIR}/*.comp"
 )
 
 set(SHADER_BINARIES "")
